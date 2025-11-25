@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Match - Two Player Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+        }
+
+        .game-info {
+            display: flex;
+            gap: 40px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .player-panel {
+            background: white;
+            padding: 20px 40px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            min-width: 180px;
+        }
+
+        .player-panel.active {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .player-panel.player1.active {
+            border: 4px solid #e74c3c;
+        }
+
+        .player-panel.player2.active {
+            border: 4px solid #3498db;
+        }
+
+        .player-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .player1 .player-name { color: #e74c3c; }
+        .player2 .player-name { color: #3498db; }
+
+        .score {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .turn-indicator {
+            background: #2ecc71;
+            color: white;
+            padding: 10px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            max-width: 600px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .card {
+            width: 100px;
+            height: 100px;
+            perspective: 1000px;
+            cursor: pointer;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card.matched .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .card-back {
+            background: linear-gradient(145deg, #3498db, #2980b9);
+            border: 3px solid #fff;
+        }
+
+        .card-back::before {
+            content: "?";
+            font-size: 3rem;
+            color: rgba(255,255,255,0.8);
+            font-weight: bold;
+        }
+
+        .card-front {
+            background: white;
+            transform: rotateY(180deg);
+            padding: 8px;
+            border: 3px solid #ecf0f1;
+        }
+
+        .card.matched .card-front {
+            border-color: #2ecc71;
+            background: #d5f5e3;
+        }
+
+        .card-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .card:hover:not(.flipped):not(.matched) .card-inner {
+            transform: scale(1.05);
+        }
+
+        .card.matched {
+            cursor: default;
+            animation: matchPulse 0.5s ease;
+        }
+
+        @keyframes matchPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 40px 60px;
+            border-radius: 20px;
+            text-align: center;
+            animation: modalSlide 0.5s ease;
+        }
+
+        @keyframes modalSlide {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .modal .winner {
+            font-size: 1.8rem;
+            color: #e74c3c;
+            margin-bottom: 10px;
+        }
+
+        .modal .final-score {
+            font-size: 1.3rem;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: linear-gradient(145deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        .restart-btn {
+            margin-top: 20px;
+        }
+
+        .trophy {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        /* SVG Images as Data URIs */
+        .img-cat { background-color: #ffeaa7; }
+        .img-egg { background-color: #fff9e6; }
+        .img-seal { background-color: #dfe6e9; }
+        .img-car { background-color: #74b9ff; }
+        .img-building { background-color: #b2bec3; }
+        .img-island { background-color: #81ecec; }
+        .img-goat { background-color: #ffeaa7; }
+        .img-pig { background-color: #fab1a0; }
+        .img-crab { background-color: #ff7675; }
+        .img-scorpion { background-color: #fdcb6e; }
+
+        @media (max-width: 600px) {
+            .game-board {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 10px;
+            }
+            
+            .card {
+                width: 70px;
+                height: 70px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .player-panel {
+                padding: 15px 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Memory Match</h1>
+    
+    <div class="game-info">
+        <div class="player-panel player1 active" id="player1Panel">
+            <div class="player-name">Player 1</div>
+            <div class="score" id="score1">0</div>
+        </div>
+        <div class="player-panel player2" id="player2Panel">
+            <div class="player-name">Player 2</div>
+            <div class="score" id="score2">0</div>
+        </div>
+    </div>
+    
+    <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+    
+    <div class="game-board" id="gameBoard"></div>
+    
+    <button class="btn restart-btn" onclick="initGame()">🔄 Restart Game</button>
+    
+    <div class="modal" id="gameOverModal">
+        <div class="modal-content">
+            <div class="trophy">🏆</div>
+            <h2>Game Over!</h2>
+            <div class="winner" id="winnerText"></div>
+            <div class="final-score" id="finalScore"></div>
+            <button class="btn" onclick="initGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Card data with SVG images
+        const cardTypes = [
+            { id: 'cat', name: 'Cat', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="60" rx="30" ry="25" fill="#f39c12"/>
+                <circle cx="50" cy="35" r="22" fill="#f39c12"/>
+                <polygon points="32,20 28,0 40,15" fill="#f39c12"/>
+                <polygon points="68,20 72,0 60,15" fill="#f39c12"/>
+                <polygon points="32,20 28,0 40,15" fill="#e67e22" opacity="0.5"/>
+                <polygon points="68,20 72,0 60,15" fill="#e67e22" opacity="0.5"/>
+                <circle cx="42" cy="32" r="5" fill="white"/>
+                <circle cx="58" cy="32" r="5" fill="white"/>
+                <circle cx="43" cy="33" r="3" fill="#2c3e50"/>
+                <circle cx="59" cy="33" r="3" fill="#2c3e50"/>
+                <ellipse cx="50" cy="42" rx="4" ry="3" fill="#e74c3c"/>
+                <path d="M46 48 Q50 52 54 48" stroke="#2c3e50" stroke-width="2" fill="none"/>
+                <line x1="25" y1="38" x2="10" y2="35" stroke="#2c3e50" stroke-width="1.5"/>
+                <line x1="25" y1="42" x2="10" y2="45" stroke="#2c3e50" stroke-width="1.5"/>
+                <line x1="75" y1="38" x2="90" y2="35" stroke="#2c3e50" stroke-width="1.5"/>
+                <line x1="75" y1="42" x2="90" y2="45" stroke="#2c3e50" stroke-width="1.5"/>
+                <ellipse cx="75" cy="75" rx="8" ry="5" fill="#f39c12" transform="rotate(-30 75 75)"/>
+            </svg>` },
+            { id: 'egg', name: 'Fried Egg', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="55" rx="40" ry="35" fill="white" stroke="#ecf0f1" stroke-width="2"/>
+                <ellipse cx="48" cy="52" rx="38" ry="32" fill="white"/>
+                <circle cx="50" cy="50" r="18" fill="#f39c12"/>
+                <circle cx="50" cy="50" r="14" fill="#f1c40f"/>
+                <ellipse cx="45" cy="46" rx="4" ry="3" fill="#f7dc6f" opacity="0.7"/>
+            </svg>` },
+            { id: 'seal', name: 'Seal', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="65" rx="35" ry="20" fill="#95a5a6"/>
+                <circle cx="50" cy="40" r="25" fill="#95a5a6"/>
+                <circle cx="40" cy="35" r="5" fill="white"/>
+                <circle cx="60" cy="35" r="5" fill="white"/>
+                <circle cx="41" cy="36" r="3" fill="#2c3e50"/>
+                <circle cx="61" cy="36" r="3" fill="#2c3e50"/>
+                <ellipse cx="50" cy="48" rx="8" ry="5" fill="#2c3e50"/>
+                <ellipse cx="50" cy="47" rx="3" ry="2" fill="#7f8c8d"/>
+                <line x1="30" y1="45" x2="15" y2="40" stroke="#2c3e50" stroke-width="1.5"/>
+                <line x1="30" y1="50" x2="15" y2="52" stroke="#2c3e50" stroke-width="1.5"/>
+                <line x1="70" y1="45" x2="85" y2="40" stroke="#2c3e50" stroke-width="1.5"/>
+                <line x1="70" y1="50" x2="85" y2="52" stroke="#2c3e50" stroke-width="1.5"/>
+                <ellipse cx="25" cy="70" rx="12" ry="6" fill="#7f8c8d" transform="rotate(-20 25 70)"/>
+                <ellipse cx="75" cy="70" rx="12" ry="6" fill="#7f8c8d" transform="rotate(20 75 70)"/>
+            </svg>` },
+            { id: 'car', name: 'Changan Car', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect x="10" y="45" width="80" height="25" rx="5" fill="#3498db"/>
+                <path d="M25 45 L35 25 L65 25 L75 45" fill="#3498db"/>
+                <rect x="38" y="28" width="24" height="15" rx="2" fill="#85c1e9"/>
+                <rect x="28" y="32" width="8" height="11" rx="1" fill="#85c1e9"/>
+                <rect x="64" y="32" width="8" height="11" rx="1" fill="#85c1e9"/>
+                <circle cx="28" cy="72" r="10" fill="#2c3e50"/>
+                <circle cx="28" cy="72" r="6" fill="#7f8c8d"/>
+                <circle cx="72" cy="72" r="10" fill="#2c3e50"/>
+                <circle cx="72" cy="72" r="6" fill="#7f8c8d"/>
+                <rect x="12" y="50" width="8" height="5" rx="2" fill="#f1c40f"/>
+                <rect x="80" y="50" width="8" height="5" rx="2" fill="#e74c3c"/>
+                <text x="50" y="58" text-anchor="middle" font-size="8" fill="white" font-weight="bold">长安</text>
+            </svg>` },
+            { id: 'building', name: 'High-rise Building', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect x="25" y="15" width="50" height="80" fill="#34495e"/>
+                <rect x="30" y="5" width="40" height="15" fill="#2c3e50"/>
+                <rect x="45" y="0" width="10" height="8" fill="#e74c3c"/>
+                <rect x="30" y="20" width="8" height="8" fill="#f1c40f"/>
+                <rect x="42" y="20" width="8" height="8" fill="#3498db"/>
+                <rect x="54" y="20" width="8" height="8" fill="#f1c40f"/>
+                <rect x="30" y="32" width="8" height="8" fill="#3498db"/>
+                <rect x="42" y="32" width="8" height="8" fill="#f1c40f"/>
+                <rect x="54" y="32" width="8" height="8" fill="#f1c40f"/>
+                <rect x="30" y="44" width="8" height="8" fill="#f1c40f"/>
+                <rect x="42" y="44" width="8" height="8" fill="#3498db"/>
+                <rect x="54" y="44" width="8" height="8" fill="#f1c40f"/>
+                <rect x="30" y="56" width="8" height="8" fill="#3498db"/>
+                <rect x="42" y="56" width="8" height="8" fill="#f1c40f"/>
+                <rect x="54" y="56" width="8" height="8" fill="#3498db"/>
+                <rect x="30" y="68" width="8" height="8" fill="#f1c40f"/>
+                <rect x="42" y="68" width="8" height="8" fill="#f1c40f"/>
+                <rect x="54" y="68" width="8" height="8" fill="#3498db"/>
+                <rect x="42" y="80" width="16" height="15" fill="#e74c3c"/>
+            </svg>` },
+            { id: 'island', name: 'Island', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="75" rx="45" ry="15" fill="#f4d03f"/>
+                <ellipse cx="50" cy="73" rx="40" ry="12" fill="#f7dc6f"/>
+                <rect x="48" y="35" width="4" height="30" fill="#8b4513"/>
+                <ellipse cx="50" cy="30" rx="20" ry="15" fill="#27ae60"/>
+                <ellipse cx="35" cy="35" rx="12" ry="10" fill="#2ecc71"/>
+                <ellipse cx="65" cy="35" rx="12" ry="10" fill="#2ecc71"/>
+                <ellipse cx="50" cy="22" rx="8" ry="6" fill="#27ae60"/>
+                <circle cx="20" cy="20" r="12" fill="#f1c40f"/>
+                <path d="M0 85 Q25 75 50 85 Q75 95 100 85 L100 100 L0 100 Z" fill="#3498db"/>
+                <path d="M0 88 Q30 80 60 90 Q80 95 100 88 L100 100 L0 100 Z" fill="#5dade2" opacity="0.5"/>
+            </svg>` },
+            { id: 'goat', name: 'Goat', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="55" rx="28" ry="22" fill="#ecf0f1"/>
+                <circle cx="50" cy="30" r="18" fill="#ecf0f1"/>
+                <path d="M35 18 L30 0 L38 15" fill="#bdc3c7"/>
+                <path d="M65 18 L70 0 L62 15" fill="#bdc3c7"/>
+                <ellipse cx="40" cy="28" rx="3" ry="4" fill="white"/>
+                <ellipse cx="60" cy="28" rx="3" ry="4" fill="white"/>
+                <circle cx="40" cy="29" r="2" fill="#2c3e50"/>
+                <circle cx="60" cy="29" r="2" fill="#2c3e50"/>
+                <ellipse cx="50" cy="38" rx="5" ry="3" fill="#fab1a0"/>
+                <path d="M45 42 L50 46 L55 42" stroke="#2c3e50" stroke-width="1.5" fill="none"/>
+                <path d="M46 45 Q50 50 54 45" stroke="#ecf0f1" stroke-width="4" fill="none"/>
+                <rect x="35" y="70" width="6" height="20" fill="#bdc3c7"/>
+                <rect x="59" y="70" width="6" height="20" fill="#bdc3c7"/>
+                <ellipse cx="78" cy="60" rx="5" ry="3" fill="#ecf0f1"/>
+            </svg>` },
+            { id: 'pig', name: 'Pig', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="55" rx="35" ry="28" fill="#fab1a0"/>
+                <circle cx="50" cy="35" r="25" fill="#fab1a0"/>
+                <ellipse cx="30" cy="18" rx="10" ry="12" fill="#fab1a0"/>
+                <ellipse cx="70" cy="18" rx="10" ry="12" fill="#fab1a0"/>
+                <ellipse cx="30" cy="18" rx="7" ry="9" fill="#e17055"/>
+                <ellipse cx="70" cy="18" rx="7" ry="9" fill="#e17055"/>
+                <circle cx="38" cy="32" r="5" fill="white"/>
+                <circle cx="62" cy="32" r="5" fill="white"/>
+                <circle cx="39" cy="33" r="3" fill="#2c3e50"/>
+                <circle cx="63" cy="33" r="3" fill="#2c3e50"/>
+                <ellipse cx="50" cy="48" rx="12" ry="8" fill="#e17055"/>
+                <circle cx="45" cy="48" r="3" fill="#d63031"/>
+                <circle cx="55" cy="48" r="3" fill="#d63031"/>
+                <path d="M42 56 Q50 60 58 56" stroke="#2c3e50" stroke-width="2" fill="none"/>
+                <ellipse cx="80" cy="60" rx="6" ry="4" fill="#fab1a0" transform="rotate(30 80 60)"/>
+            </svg>` },
+            { id: 'crab', name: 'Crab', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="55" rx="30" ry="22" fill="#e74c3c"/>
+                <circle cx="35" cy="35" r="8" fill="#e74c3c"/>
+                <circle cx="65" cy="35" r="8" fill="#e74c3c"/>
+                <circle cx="35" cy="33" r="4" fill="white"/>
+                <circle cx="65" cy="33" r="4" fill="white"/>
+                <circle cx="36" cy="34" r="2" fill="#2c3e50"/>
+                <circle cx="66" cy="34" r="2" fill="#2c3e50"/>
+                <path d="M5 40 Q15 30 20 45 L25 50" stroke="#c0392b" stroke-width="6" fill="none" stroke-linecap="round"/>
+                <path d="M5 35 L0 30 M5 35 L0 40" stroke="#c0392b" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <path d="M95 40 Q85 30 80 45 L75 50" stroke="#c0392b" stroke-width="6" fill="none" stroke-linecap="round"/>
+                <path d="M95 35 L100 30 M95 35 L100 40" stroke="#c0392b" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <line x1="30" y1="75" x2="25" y2="90" stroke="#c0392b" stroke-width="4"/>
+                <line x1="40" y1="75" x2="38" y2="92" stroke="#c0392b" stroke-width="4"/>
+                <line x1="50" y1="76" x2="50" y2="95" stroke="#c0392b" stroke-width="4"/>
+                <line x1="60" y1="75" x2="62" y2="92" stroke="#c0392b" stroke-width="4"/>
+                <line x1="70" y1="75" x2="75" y2="90" stroke="#c0392b" stroke-width="4"/>
+            </svg>` },
+            { id: 'scorpion', name: 'Scorpion', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="70" rx="20" ry="15" fill="#d35400"/>
+                <ellipse cx="50" cy="55" rx="12" ry="8" fill="#e67e22"/>
+                <ellipse cx="50" cy="42" rx="10" ry="7" fill="#e67e22"/>
+                <ellipse cx="55" cy="30" rx="8" ry="6" fill="#e67e22"/>
+                <ellipse cx="65" cy="22" rx="7" ry="5" fill="#e67e22"/>
+                <ellipse cx="75" cy="18" rx="6" ry="4" fill="#e67e22"/>
+                <path d="M80 15 L85 10 L82 18" fill="#c0392b"/>
+                <path d="M20 55 L5 45 M5 45 L0 40 M5 45 L0 50" stroke="#d35400" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <path d="M80 55 L95 45 M95 45 L100 40 M95 45 L100 50" stroke="#d35400" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <line x1="35" y1="75" x2="25" y2="90" stroke="#d35400" stroke-width="3"/>
+                <line x1="40" y1="78" x2="32" y2="95" stroke="#d35400" stroke-width="3"/>
+                <line x1="60" y1="78" x2="68" y2="95" stroke="#d35400" stroke-width="3"/>
+                <line x1="65" y1="75" x2="75" y2="90" stroke="#d35400" stroke-width="3"/>
+                <circle cx="45" cy="68" r="3" fill="#2c3e50"/>
+                <circle cx="55" cy="68" r="3" fill="#2c3e50"/>
+            </svg>` }
+        ];
+
+        // Game state
+        let cards = [];
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let currentPlayer = 1;
+        let scores = { 1: 0, 2: 0 };
+        let isLocked = false;
+
+        // Initialize the game
+        function initGame() {
+            // Reset state
+            cards = [];
+            flippedCards = [];
+            matchedPairs = 0;
+            currentPlayer = 1;
+            scores = { 1: 0, 2: 0 };
+            isLocked = false;
+
+            // Update UI
+            document.getElementById('score1').textContent = '0';
+            document.getElementById('score2').textContent = '0';
+            updateTurnIndicator();
+            document.getElementById('gameOverModal').classList.remove('show');
+
+            // Create card pairs
+            const cardPairs = [...cardTypes, ...cardTypes];
+            
+            // Shuffle cards
+            for (let i = cardPairs.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cardPairs[i], cardPairs[j]] = [cardPairs[j], cardPairs[i]];
+            }
+
+            // Create card elements
+            const gameBoard = document.getElementById('gameBoard');
+            gameBoard.innerHTML = '';
+
+            cardPairs.forEach((cardType, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.dataset.id = cardType.id;
+                card.dataset.index = index;
+
+                card.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-back"></div>
+                        <div class="card-front">
+                            ${cardType.svg}
+                        </div>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => flipCard(card));
+                gameBoard.appendChild(card);
+                cards.push(card);
+            });
+
+            updatePlayerPanels();
+        }
+
+        // Flip a card
+        function flipCard(card) {
+            // Check if card can be flipped
+            if (isLocked || 
+                card.classList.contains('flipped') || 
+                card.classList.contains('matched') ||
+                flippedCards.length >= 2) {
+                return;
+            }
+
+            // Flip the card
+            card.classList.add('flipped');
+            flippedCards.push(card);
+
+            // Check for match when two cards are flipped
+            if (flippedCards.length === 2) {
+                isLocked = true;
+                checkMatch();
+            }
+        }
+
+        // Check if two flipped cards match
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+            const isMatch = card1.dataset.id === card2.dataset.id;
+
+            if (isMatch) {
+                // Match found
+                setTimeout(() => {
+                    card1.classList.add('matched');
+                    card2.classList.add('matched');
+                    
+                    scores[currentPlayer]++;
+                    document.getElementById(`score${currentPlayer}`).textContent = scores[currentPlayer];
+                    
+                    matchedPairs++;
+                    flippedCards = [];
+                    isLocked = false;
+
+                    // Check if game is over
+                    if (matchedPairs === cardTypes.length) {
+                        setTimeout(showGameOver, 500);
+                    }
+                }, 500);
+            } else {
+                // No match - flip back and switch player
+                setTimeout(() => {
+                    card1.classList.remove('flipped');
+                    card2.classList.remove('flipped');
+                    flippedCards = [];
+                    
+                    // Switch player
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    updateTurnIndicator();
+                    updatePlayerPanels();
+                    
+                    isLocked = false;
+                }, 1000);
+            }
+        }
+
+        // Update turn indicator
+        function updateTurnIndicator() {
+            const indicator = document.getElementById('turnIndicator');
+            indicator.textContent = `Player ${currentPlayer}'s Turn`;
+            indicator.style.background = currentPlayer === 1 ? '#e74c3c' : '#3498db';
+        }
+
+        // Update player panels to show active player
+        function updatePlayerPanels() {
+            const panel1 = document.getElementById('player1Panel');
+            const panel2 = document.getElementById('player2Panel');
+            
+            panel1.classList.toggle('active', currentPlayer === 1);
+            panel2.classList.toggle('active', currentPlayer === 2);
+        }
+
+        // Show game over modal
+        function showGameOver() {
+            const modal = document.getElementById('gameOverModal');
+            const winnerText = document.getElementById('winnerText');
+            const finalScore = document.getElementById('finalScore');
+
+            let winner;
+            if (scores[1] > scores[2]) {
+                winner = 'Player 1 Wins!';
+                winnerText.style.color = '#e74c3c';
+            } else if (scores[2] > scores[1]) {
+                winner = 'Player 2 Wins!';
+                winnerText.style.color = '#3498db';
+            } else {
+                winner = "It's a Tie!";
+                winnerText.style.color = '#9b59b6';
+            }
+
+            winnerText.textContent = winner;
+            finalScore.textContent = `Final Score: Player 1: ${scores[1]} | Player 2: ${scores[2]}`;
+            
+            modal.classList.add('show');
+        }
+
+        // Start the game when page loads
+        window.onload = initGame;
+    </script>
+</body>
+</html>
